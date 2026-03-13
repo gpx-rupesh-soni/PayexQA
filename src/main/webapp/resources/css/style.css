@@ -1,0 +1,63 @@
+#ta_search_text{
+	width: 20%;
+}
+
+.centerColumn{
+	text-align: center;
+}
+
+/* @author RahulB 03-06-2021 T4522 Console based offline cf */
+
+.usrDtl{float:right;z-index: 4}
+
+.usrNme{float:left; padding:8px 10px; background:#fff; border-left:1px solid #cfcfcf; border-right:1px solid #cfcfcf;  position:relative;}
+.usrNme .usrInr{display:none;}
+.distDropmn{background-color: #e5e5e5; max-width: 100%; width: 100% !important; border-radius: 0px !important;	}
+.usrNme:hover .usrInr{position:absolute; width:100%;  display:block; background:#fff; box-sizing:border-box; border:1px solid #cfcfcf; border-top:0px; right:0; top:32px; display:block;z-index:2}
+.usrNme .usrInr a{display:block; padding:10px; text-align:right; font-weight:bold; color:#333;}
+.usrNme .usrInr a:hover{background:#EAEAEA;}
+.usrInr .logOt img{ margin-left:5px; display:inline-block;}
+.usrNme img{vertical-align:middle; margin-right:5px;}
+
+
+.usrNme{
+	padding: 15px 10px 9px 10px;
+    width: 150px;
+    text-transform: uppercase;
+    font-size: 11px;
+    background: transparent;
+    border: none;
+    color: #9d9d9d;
+    font-weight:bold;
+    line-height: 20px;
+}
+
+.usrNme:hover .ocfNm{
+	color: white;
+}
+
+.usrNme img{
+	opacity: 0.3;	
+}
+
+.usrNme .usrInr {
+    display: none;
+    margin-top: 8px;
+    border: none !important;
+    border-top: 3px solid #3692c7 !important;
+    background: #e5e5e5 !important;
+    padding: 0px 0px;
+}
+
+.usrNme .usrInr a {
+	text-align: left;
+    font-size: 11px;
+    font-weight: normal;
+    color: #444444;
+    text-transform: capitalize;	
+    font-weight:bold;
+}
+
+.usrInr .logOt img{
+	margin-left:0px;
+}
