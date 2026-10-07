@@ -87,7 +87,7 @@ public class RetailerService {
 			break;
 			
 		case "del-data":
-			return transactionDao.deleteRetailerData(retailer.getPayex_RETAILER_CODE());			
+			return transactionDao.deleteRetailerData("all", null, null, retailer.getPayex_RETAILER_CODE());			
 			
 		case "del-ret":			
 			return retailerDao.deleteRetailer(retailer,retailer.getCpgTag());

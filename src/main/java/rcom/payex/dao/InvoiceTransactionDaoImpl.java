@@ -1,5 +1,6 @@
 package rcom.payex.dao;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -120,7 +121,7 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 
 		return invs;
 	}
-
+	
 	@Override
 	public List<CentralInvoices> getInvoicesOfTxn(Long ppid) {
 
@@ -128,6 +129,10 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 				.add(Restrictions.eq("PAYEX_PAYMENT_ID", ppid));
 		criteria.addOrder(Order.desc("PAYEX_TRANSACTION_ID"));
 		return criteria.list();
+	}
+	
+	public CentralInvoices getInvoice(Long pti) {
+		return getSession().get(CentralInvoices.class, pti);
 	}
 
 	@Override
@@ -384,32 +389,105 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 	}
 
 	@Override
-	public JSONObject deleteRetailerData(String payexRetailerCode) {
+	public JSONObject deleteRetailerData(String docType, String payexCpgCode, String retailerCode, String payexRetailerCode) {
 
-		System.out.println("deleteRetailerData called...");
-		System.out.println("payexRetailerCode : "+payexRetailerCode);
+		logger.info("deleteRetailerData called...");
+		logger.info("docType : "+docType+", payexCpgCode : "+payexCpgCode+", retailerCode : "+retailerCode+", payexRetailerCode : "+payexRetailerCode);
 		NativeQuery query;
 		Session session = getSession();
 
 		JSONObject res = new JSONObject();
 
+		boolean hasCpgCode = payexCpgCode != null && !payexCpgCode.trim().isEmpty();
+		List<String> retailerCodes = splitCodes(retailerCode);
+		List<String> payexRetailerCodes = splitCodes(payexRetailerCode);
+		boolean hasRetailerCode = !retailerCodes.isEmpty();
+		boolean hasPayexRetailerCode = !payexRetailerCodes.isEmpty();
+
+		// never delete without a retailer filter, otherwise whole tables (or a whole CPG) get wiped
+		if (!hasRetailerCode && !hasPayexRetailerCode) {
+			logger.info("deleteRetailerData : retailerCode or payexRetailerCode is required, skipping delete");
+			return res;
+		}
+
+		String type = docType == null || docType.trim().isEmpty() ? "all" : docType.trim().toLowerCase();
+		boolean isAll = "all".equals(type);
+
+		// common where clause; transaction core keeps the retailer code in CPG_RETAILER_CODE
+		StringBuilder where = new StringBuilder(" where 1=1");
+		StringBuilder whereTxn = new StringBuilder(" where 1=1");
+		if (hasCpgCode) {
+			where.append(" and PAYEX_CPG_CODE =:PAYEX_CPG_CODE");
+			whereTxn.append(" and PAYEX_CPG_CODE =:PAYEX_CPG_CODE");
+		}
+		if (hasRetailerCode) {
+			where.append(" and RETAILER_CODE in (:RETAILER_CODE)");
+			whereTxn.append(" and CPG_RETAILER_CODE in (:RETAILER_CODE)");
+		}
+		if (hasPayexRetailerCode) {
+			where.append(" and PAYEX_RETAILER_CODE in (:PAYEX_RETAILER_CODE)");
+			whereTxn.append(" and PAYEX_RETAILER_CODE in (:PAYEX_RETAILER_CODE)");
+		}
+
 		try {
-			String sqlDelInv = "delete from payex_central_invoices where payex_RETAILER_CODE =:PAYEX_RETAILER_CODE";
-			query = session.createNativeQuery(sqlDelInv);
-			res.put("delRetInvCount", query.setParameter("PAYEX_RETAILER_CODE",payexRetailerCode).executeUpdate());
+			if (isAll || "inv".equals(type) || "dn".equals(type)) {
+				String sqlDelInv = "delete from payex_central_invoices" + where;
+				if ("inv".equals(type)) {
+					sqlDelInv += " and INVOICE_TYPE = 0";
+				} else if ("dn".equals(type)) {
+					sqlDelInv += " and INVOICE_TYPE = 4";
+				}
+				query = session.createNativeQuery(sqlDelInv);
+				setRetailerDataParams(query, hasCpgCode ? payexCpgCode.trim() : null, retailerCodes, payexRetailerCodes);
+				res.put("delRetInvCount", query.executeUpdate());
+			}
 
-			String sqlDelCn = "delete from retailer_credit_note where payex_RETAILER_CODE =:PAYEX_RETAILER_CODE";
-			query = session.createNativeQuery(sqlDelCn);
-			res.put("delRetCnCount", query.setParameter("PAYEX_RETAILER_CODE",payexRetailerCode).executeUpdate());
+			if (isAll || "cn".equals(type)) {
+				String sqlDelCn = "delete from retailer_credit_note" + where;
+				query = session.createNativeQuery(sqlDelCn);
+				setRetailerDataParams(query, hasCpgCode ? payexCpgCode.trim() : null, retailerCodes, payexRetailerCodes);
+				res.put("delRetCnCount", query.executeUpdate());
+			}
 
-			String sqlDelTxn = "delete from payex_transaction_core where payex_RETAILER_CODE =:PAYEX_RETAILER_CODE";
-			query = session.createNativeQuery(sqlDelTxn);
-			res.put("delRetTxnCount", query.setParameter("PAYEX_RETAILER_CODE",payexRetailerCode).executeUpdate());
+			if (isAll || "txn".equals(type)) {
+				String sqlDelTxn = "delete from payex_transaction_core" + whereTxn;
+				if ("txn".equals(type)) {
+					sqlDelTxn += " and INVOICE_TYPE = 0";
+				}
+				query = session.createNativeQuery(sqlDelTxn);
+				setRetailerDataParams(query, hasCpgCode ? payexCpgCode.trim() : null, retailerCodes, payexRetailerCodes);
+				res.put("delRetTxnCount", query.executeUpdate());
+			}
 		}catch (Exception e) {
 			logger.info(Utils.getStackTrace(e));
 		}
 
 		return res;
+	}
+
+	private List<String> splitCodes(String codes) {
+		List<String> list = new ArrayList<>();
+		if (codes == null) {
+			return list;
+		}
+		for (String code : codes.split(",")) {
+			if (!code.trim().isEmpty()) {
+				list.add(code.trim());
+			}
+		}
+		return list;
+	}
+
+	private void setRetailerDataParams(NativeQuery query, String payexCpgCode, List<String> retailerCodes, List<String> payexRetailerCodes) {
+		if (payexCpgCode != null) {
+			query.setParameter("PAYEX_CPG_CODE", payexCpgCode);
+		}
+		if (!retailerCodes.isEmpty()) {
+			query.setParameterList("RETAILER_CODE", retailerCodes);
+		}
+		if (!payexRetailerCodes.isEmpty()) {
+			query.setParameterList("PAYEX_RETAILER_CODE", payexRetailerCodes);
+		}
 	}
 
 	@Override

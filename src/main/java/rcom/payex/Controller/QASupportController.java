@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.google.gson.Gson;
 
+import rcom.payex.model.CentralInvoices;
 import rcom.payex.model.Retailer;
 import rcom.payex.model.TransactionCore;
 import rcom.payex.service.CommonService;
@@ -40,6 +41,7 @@ import rcom.payex.service.InvoiceService;
 import rcom.payex.service.LedgerService;
 import rcom.payex.service.QASupportService;
 import rcom.payex.service.RetailerService;
+import rcom.payex.utils.Utils;
 
 /**
  * Handles requests for the application home page.
@@ -271,6 +273,65 @@ public class QASupportController extends HttpServlet {
 
 	    return res.toString();
 	}
+	
+	@RequestMapping(value = "/ret-inv", method = RequestMethod.GET)
+	public String retInvoicesGet(Locale locale,Model model, HttpSession session,
+			@RequestParam(value = "txnType", required = false) String txnType,
+			@RequestParam(value = "payexCpgCode", required = false) String payexCpgCode,
+			@RequestParam(value = "cpgInvoiceNumber", required = false) String cpgInvoiceNumber,
+			@RequestParam(value = "payexRetailerCode", required = false) String payexRetailerCode) {
+
+		if (!isLoged(session))return "redirect:../login";
+
+		System.out.println("type : "+txnType);
+
+		if(StringUtils.hasText(txnType) || cpgInvoiceNumber!=null){
+			System.out.println("type : "+txnType);
+			List<CentralInvoices> txns = ledgerService.getInvoicesDetails(payexCpgCode,payexRetailerCode,cpgInvoiceNumber);
+			System.out.println("txns.size : "+txns.size());
+			model.addAttribute("txns", txns);
+		}
+
+		model.addAttribute("docType", txnType);
+		model.addAttribute("payexCpgCode", payexCpgCode);
+		model.addAttribute("payexRetailerCode", payexRetailerCode);
+		model.addAttribute("cpgInvoiceNumber", cpgInvoiceNumber);
+
+		//commonService.processTxnStatus(ppi);
+		model.addAttribute("layout", "qasupport/invUpdate");
+		return mainLayout;
+	}
+	
+	@RequestMapping(value = "/ret-inv", method = RequestMethod.POST)
+	@ResponseBody
+	public String retInvoicesPost(Locale locale,Model model, HttpSession session,
+			@RequestParam(value = "action", required = true, defaultValue = "") String action,
+			@RequestParam(value = "pcc", required = false, defaultValue = "") String payexCpgCode,
+			@RequestParam(value = "prc", required = false, defaultValue = "") String payexRetailerCode,
+			@RequestParam(value = "invno", required = false, defaultValue = "") String invNo,
+			@RequestParam(value = "pti", required = false, defaultValue = "") Long payexTransactionID) {
+
+		JSONObject res = new JSONObject();
+		System.out.println("action : "+action+" , payexCpgCode : "+payexCpgCode+" , payexRetailerCode : "+payexRetailerCode+" , invNo : "+invNo);
+		String msg = null;
+		
+		switch (action) {
+		case "add-part-outstanding":
+			if(payexTransactionID!=null)
+				msg = commonService.addPartialInvoice(payexTransactionID);
+			break;
+
+		default:
+			break;
+		}
+		
+		try {
+			res.put("msg", msg);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		return res.toString();
+	}
 
 	@RequestMapping(value = "/neft-payment", method = RequestMethod.GET)
 	public String neftPaymentGet(Locale locale,Model model, HttpSession session,
@@ -297,29 +358,7 @@ public class QASupportController extends HttpServlet {
 		System.out.println("update-inv called... >> "+ppid);
 		commonService.updateTransactionDoc(ppid);
 		return "Done";
-	}
-
-	@RequestMapping(value = "/ret-inv", method = RequestMethod.GET)
-	public String retInvoicesGet(Locale locale,Model model, HttpSession session,
-			@RequestParam(value = "date", required = false, defaultValue = "") String date) {
-
-		if (!isLoged(session))return "redirect:../login";
-		model.addAttribute("layout", "qasupport/update_nach");
-		return mainLayout;
-	}
-
-	@RequestMapping(value = "/ret-inv", method = RequestMethod.POST)
-	public String retInvoicesPost(Locale locale,Model model, HttpSession session,
-			@RequestParam(value = "action", required = true, defaultValue = "") String action,
-			@RequestParam(value = "pcc", required = false, defaultValue = "") String payexCpgCode,
-			@RequestParam(value = "prc", required = false, defaultValue = "") String payexRetailerCode,
-			@RequestParam(value = "invno", required = false, defaultValue = "") String invNo) {
-
-		System.out.println("action : "+action+" , payexCpgCode : "+payexCpgCode+" , payexRetailerCode : "+payexRetailerCode+" , invNo : "+invNo);
-		commonService.addPartialInvoice(payexCpgCode, payexRetailerCode, invNo);
-
-		return "retInvoicesPost";
-	}
+	}	
 
 	@RequestMapping(value = "/genInvData", method = RequestMethod.GET)
 	public String generateInvDataGet(Model model, HttpSession session,
@@ -332,25 +371,63 @@ public class QASupportController extends HttpServlet {
 
 	@RequestMapping(value = "/genInvData", method = RequestMethod.POST)
 	@ResponseBody
-	public String generateInvDataPost(Model model,
+	public Map<String, Object> generateInvDataPost(Model model,
 			@RequestParam(value = "docType", required = true) String docType,
-			@RequestParam(value = "payexCpgCode", required = false) String payexCpgCode,
-			@RequestParam(value = "payexRetailerCode", required = false) String payexRetailerCode,
-			@RequestParam(value = "maxAmt", required = false, defaultValue = "0") String maxAmt,
-			@RequestParam(value = "minAmt", required = false, defaultValue = "0") String minAmt,
-			@RequestParam(value = "docCount", required = false, defaultValue = "0") String docCount) throws JSONException {
+			@RequestParam(value = "payexCpgCode", required = true) String payexCpgCode,
+			@RequestParam(value = "retailerCode", required = true) String retailerCode,
+			@RequestParam(value = "divCode", required = false) String divCode,
+			@RequestParam(value = "docCode", required = false) String docCode,
+			@RequestParam(value = "maxAmt", required = false, defaultValue = "0") double maxAmt,
+			@RequestParam(value = "minAmt", required = false, defaultValue = "0") double minAmt,
+			@RequestParam(value = "docCount", required = false, defaultValue = "0") int docCount) {
 
 		//if (!isLoged(session))return "redirect:../login";
-		JSONObject reqData = new JSONObject().put("docType", docType)
-				.put("payexCpgCode", payexCpgCode)
-				.put("payexRetailerCode", payexRetailerCode)
-				.put("maxAmt", maxAmt)
-				.put("minAmt", minAmt)
-				.put("docCount", docCount);
+		System.out.println("docType : "+docType+" , payexCpgCode : "+payexCpgCode+" , retailerCode : "+retailerCode
+				+" , maxAmt : "+maxAmt+" , minAmt : "+minAmt+" , docCount : "+docCount);
 
-		//model.addAttribute("layout", "qasupport/genInvData");
-		System.out.println("reqData : "+reqData);
-		return reqData.toString();
+		return qaSupportService.generateDummyInvoices(payexCpgCode,retailerCode, divCode, docCode, minAmt, maxAmt, docCount);
+	}
+	
+	@RequestMapping(value = "/purgeData", method = RequestMethod.GET)
+	public String purgeDataGet(Model model, HttpSession session,
+			@RequestParam(value = "date", required = false, defaultValue = "") String date) {
+
+		if (!isLoged(session))return "redirect:../login";
+		model.addAttribute("layout", "qasupport/purgeData");
+		return mainLayout;
+	}
+
+	@RequestMapping(value = "/purgeData", method = RequestMethod.POST)
+	@ResponseBody
+	public String purgeDataPost(Model model, HttpSession session,
+			@RequestParam(value = "docType", required = true) String docType,
+			@RequestParam(value = "payexCpgCode", required = false, defaultValue = "") String payexCpgCode,
+			@RequestParam(value = "retailerCode", required = false, defaultValue = "") String retailerCode,
+			@RequestParam(value = "payexRetailerCode", required = false, defaultValue = "") String payexRetailerCode) {
+
+		if (!isLoged(session))return "redirect:../login";
+		logger.info("docType : "+docType+" , payexCpgCode : "+payexCpgCode+" , retailerCode : "+retailerCode+" , payexRetailerCode : "+payexRetailerCode);
+
+		JSONObject res = new JSONObject();
+		try {
+			// payexCpgCode and (retailerCode or payexRetailerCode) are must
+			if (payexCpgCode.trim().isEmpty()) {
+				res.put("status", "FAILED");
+				res.put("message", "payexCpgCode is required");
+				return res.toString();
+			}
+			if (retailerCode.replace(",", "").trim().isEmpty() && payexRetailerCode.replace(",", "").trim().isEmpty()) {
+				res.put("status", "FAILED");
+				res.put("message", "retailerCode or payexRetailerCode is required");
+				return res.toString();
+			}
+			res.put("status", "SUCCESS");
+			res.put("data", qaSupportService.purgeData(docType, payexCpgCode, retailerCode, payexRetailerCode));
+		} catch (JSONException e) {
+			logger.info(Utils.getStackTrace(e));
+		}
+
+		return res.toString();
 	}
 
 	@RequestMapping(value = "/validateCD", method = RequestMethod.GET)

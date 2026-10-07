@@ -16,18 +16,40 @@
 			</div>
 	</td>
 	<td>
-		<div id="op-header" 
+		<div id="op-header"
 			style="margin-left: 40px; height: 40px; width: 200px;">
 			<h4>CPG Code:</h4>
-			<input type="text" id="payexCpgCode" name="payexCpgCode" 
-						placeholder="Please enter CPG Code" autocomplete="off"/>
+			<select id="payexCpgCode" name="payexCpgCode" class="form-control"
+				style="border: 0; width: 100%;" onchange="handleCpgCodeChange()">
+				<option disabled selected>-------select CPG Code-------</option>
+				<option value="CPGVGUARD">CPGVGUARD</option>
+				<option value="CPGBRGSTN">CPGBRGSTN</option>
+				<option value="CPGCROM">CPGCROM</option>
+				<option value="CPGMRLS">CPGMRLS</option>
+			</select>
+			</div>
+	</td>
+	<td id="divCodeContainer" style="display: none;">
+		<div id="op-header"
+			style="margin-left: 40px; height: 40px; width: 200px;">
+			<h4>Div Code:</h4>
+			<input type="text" id="divCode" name="divCode"
+						placeholder="Please enter Div Code" autocomplete="off"/>
+			</div>
+	</td>
+	<td id="docCodeContainer" style="display: none;">
+		<div id="op-header"
+			style="margin-left: 40px; height: 40px; width: 200px;">
+			<h4>Doc Code:</h4>
+			<input type="text" id="docCode" name="docCode"
+						placeholder="Please enter Doc Code" autocomplete="off"/>
 			</div>
 	</td>
 	<td>
 		<div id="op-header" 
 			style="margin-left: 40px; height: 40px; width: 200px;">
 			<h4>Retailer Code:</h4>
-			<input type="text" id="payexRetailerCode" name="payexRetailerCode" 
+			<input type="text" id="retailerCode" name="retailerCode" 
 						placeholder="Please enter Retailer Code" autocomplete="off"/>
 			</div>
 	</td>
@@ -69,6 +91,19 @@ function handleAction(action){
 	}
 }
 
+function handleCpgCodeChange(){
+	var payexCpgCode = $("#payexCpgCode").val();
+	if("CPGVGUARD"===payexCpgCode){
+		$("#divCodeContainer").show();
+		$("#docCodeContainer").show();
+	}else{
+		$("#divCodeContainer").hide();
+		$("#docCodeContainer").hide();
+		$("#divCode").val("");
+		$("#docCode").val("");
+	}
+}
+
 function handleResponse(action, response){	
 	alert("handleResponse called : "+JSON.stringify(response));
 	if("gen-ledger"===action){
@@ -81,19 +116,23 @@ function genLedger(action){
 
 	var docType = $("#docType").val();
 	var payexCpgCode = $("#payexCpgCode").val();
-	var payexRetailerCode = $("#payexRetailerCode").val();
+	var retailerCod = $("#retailerCode").val();
+	var divCode = $("#divCode").val();
+	var docCode = $("#docCode").val();
 	var maxAmt = $("#maxAmt").val();
 	var minAmt = $("#minAmt").val();
 	var docCount = $("#docCount").val();
-	
+
 	var postData = {
 			docType:docType,
 			payexCpgCode:payexCpgCode,
-			payexRetailerCode:payexRetailerCode,
+			retailerCode:retailerCod,
+			divCode:divCode,
+			docCode:docCode,
 			maxAmt:maxAmt,
 			minAmt:minAmt,
 			docCount:docCount
-	    };	
+	    };
 	genLedgerCall(postData,action);
 }
 

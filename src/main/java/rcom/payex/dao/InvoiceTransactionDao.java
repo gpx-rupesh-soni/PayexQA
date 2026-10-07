@@ -21,8 +21,10 @@ public interface InvoiceTransactionDao {
 	public int savePayexCentralInvoices(Collection<CentralInvoices> payexCentralInvoiceList);
 	public List<CentralInvoices> getInvoicesDetails(String payexCpgCode, String payexRetailerCode,
 			String cpgInvoiceNumber);
+	//public List<CentralInvoices> getLastPaidInvoicesDetails(String payexCpgCode, String payexRetailerCode, String cpgInvoiceNumber);
 
 	public List<CentralInvoices> getInvoicesOfTxn(Long ppid);
+	public CentralInvoices getInvoice(Long pti);
 	public List<RetailerCreditNote> getCreditNoteOfTxn(Long ppid);
 
 	public CentralInvoices getInvoicesDetails(Long ppid);
@@ -37,7 +39,7 @@ public interface InvoiceTransactionDao {
 
 	public JSONObject updateTxnAsPending(long ppid);
 	public JSONObject deleteTxn(long ppid);
-	public JSONObject deleteRetailerData(String payexRetailerCode);
+	public JSONObject deleteRetailerData(String docType, String payexCpgCode, String retailerCode, String payexRetailerCode);
 
 	public List<TxnApiLog> getTxnApiLog(String payexRetailerCode, Date createDate);
 	public TxnApiLog getTxnApiLog(Long payexPaymentId);

@@ -130,10 +130,6 @@ public class DistributorSetting {
 	@Column(name="AUTO_PULL_SETTINGS")
 	String AUTO_PULL_SETTINGS;		
 		
-	@OneToOne
-	@JoinColumn(name="PAYEX_DISTRIBUTOR_CODE",insertable=false,updatable=false)
-	Distributor distributor_master;
-	
 	@Column(name="CN_VIEW_TYPE")
 	Integer CN_VIEW_TYPE;
 	
@@ -172,15 +168,7 @@ public class DistributorSetting {
 	}
 	public void setINVOICE_SETTINGS(String iNVOICE_SETTINGS) {
 		INVOICE_SETTINGS = iNVOICE_SETTINGS;
-	}
-	
-	public Distributor getDistributor_master() {
-		return distributor_master;
-	}
-	public void setDistributor_master(Distributor distributor_master) {
-		this.distributor_master = distributor_master;
-	}
-	
+	}	
 	public Integer getDISTRIBUTOR_SETTING_ID() {
 		return DISTRIBUTOR_SETTING_ID;
 	}

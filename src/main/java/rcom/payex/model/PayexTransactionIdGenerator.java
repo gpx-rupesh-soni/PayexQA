@@ -21,7 +21,7 @@ public class PayexTransactionIdGenerator implements IdentifierGenerator {
 		try (PreparedStatement ps = connection.prepareStatement("SELECT seq_payex_transaction_id.nextval as nextval from dual")) {
 			rs = ps.executeQuery();
 			if (rs.next()) {
-				int id = rs.getInt("nextval");
+				long id = rs.getLong("nextval");
 				return id;
 			}
 		} catch (Exception e) {
@@ -45,7 +45,7 @@ public class PayexTransactionIdGenerator implements IdentifierGenerator {
 				.prepareStatement("SELECT seq_payex_transaction_id.nextval as nextval from dual")) {
 			rs = ps.executeQuery();
 			if (rs.next()) {
-				int id = rs.getInt("nextval");
+				long id = rs.getLong("nextval");
 				return id;
 			}
 		} catch (Exception e) {

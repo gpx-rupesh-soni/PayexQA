@@ -280,8 +280,9 @@ public class CommonService {
 	}
 
 	public void callQaPgNeftMis(String payload) {
+		System.out.println("payload : "+payload);
 		try {
-			Utils.sendPost("https://payex.co.in/PayexUTQA/MIS/V001/PAYEXQA/neftmis", payload, "", null);
+			Utils.sendPost("https://payex.co.in/PayexUT/MIS/V001/PAYEXQA/neftmis", payload, "", null);
 		} catch (ClientProtocolException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -297,8 +298,15 @@ public class CommonService {
 		invoiceTransactionDao.updateTxnAsPending(ppid);
 	}
 
+	
 	@Transactional(rollbackFor=Exception.class)
-	public void addPartialInvoice(String payexCpgCode, String payexRetailerCode, String cpgInvoiceNumber) {
+	public String addPartialInvoice(long pti) {
+		CentralInvoices centralInvoices = invoiceTransactionDao.getInvoice(pti);
+		return addPartialInvoice(centralInvoices.getPAYEX_CPG_CODE(), centralInvoices.getPAYEX_RETAILER_CODE(), centralInvoices.getCPG_INVOICE_NUMBER());
+	}
+	
+	@Transactional(rollbackFor=Exception.class)
+	public String addPartialInvoice(String payexCpgCode, String payexRetailerCode, String cpgInvoiceNumber) {
 		try {
 		List<CentralInvoices> oldInvs= invoiceTransactionDao.getInvoicesDetails(payexCpgCode, payexRetailerCode, cpgInvoiceNumber);
 		System.out.println("oldInvs.size() : "+oldInvs.size());
@@ -315,7 +323,8 @@ public class CommonService {
 		}
 
 		if(partEntryAllowed) {
-			CentralInvoices orgInv = oldInvs.get(0);
+			CentralInvoices orgInv = oldInvs.get(oldInvs.size()-1);;
+			CentralInvoices lastPaid = oldInvs.get(0);
 			System.out.println("payexInvoiceNumber : "+orgInv.getPAYEX_INVOICE_NUMBER());
 			System.out.println("getCPG_INVOICE_AMOUNT : "+orgInv.getCPG_INVOICE_AMOUNT());
 			System.out.println("getTOTAL_AMOUNT_DUE : "+orgInv.getTOTAL_AMOUNT_DUE());
@@ -327,7 +336,7 @@ public class CommonService {
 			CentralInvoices payexCentralInvoice = CentralInvoiceUtil.getCentralInvoice(orgInv.getRETAILER_CODE(), payexRetailerCode,
 					payexCpgCode, orgInv.getPAYEX_DISTRIBUTOR_CODE(), orgInv.getROUTE_CODE(), orgInv.getAGENT_CODE(),
 					orgInv.getCPG_INVOICE_NUMBER(), payexInvoiceNumber, orgInv.getCPG_INCVOICE_DATE().getTime(), orgInv.getDATE_TO_DUE().getTime(), orgInv.getCPG_INVOICE_AMOUNT(), orgInv.getTAXABLE_AMOUNT(),
-					(orgInv.getTOTAL_AMOUNT_DUE()-paidAmount), orgInv.getDISTRIBUTOR_NAME(), orgInv.getINVOICE_INFO(), orgInv.getINVOICE_SETTINGS(), orgInv.getDIV_CODE(), orgInv.getINVOICE_INFO_EXTRA(),
+					(lastPaid.getTOTAL_AMOUNT_DUE()-lastPaid.getAMOUNT_APPROVED()), orgInv.getDISTRIBUTOR_NAME(), orgInv.getINVOICE_INFO(), orgInv.getINVOICE_SETTINGS(), orgInv.getDIV_CODE(), orgInv.getINVOICE_INFO_EXTRA(),
 					orgInv.getVIEW_TYPE(), orgInv.getVIEW_TYPE(), orgInv.getINVOICE_SETTINGS(), orgInv.getINVOICE_TYPE(), 0, orgInv.getCPG_INVOICE_CREDIT(),orgInv.getFINANCIAL_YEAR());
 			payexCentralInvoice.setSEQUENCE_FLAG(sequenceFlag);
 			payexCentralInvoice.setAREA_CODE(orgInv.getAREA_CODE());
@@ -339,6 +348,7 @@ public class CommonService {
 		}catch (Exception e) {
 			e.printStackTrace();
 		}
+		return "Part Outstanding added";
 	}
 
 	@Transactional(readOnly = true)

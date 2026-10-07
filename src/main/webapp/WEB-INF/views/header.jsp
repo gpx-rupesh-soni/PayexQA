@@ -29,6 +29,9 @@
 							data-toggle="dropdown" href="#">Ledger<span class="caret"></span></a>
 							<ul class="dropdown-menu">
 								<li><a href="<c:url value="/qasupport/genInvData"/>">Generate Ledger Data</a></li>
+								<li><a href="<c:url value="/qasupport/purgeData"/>">Purge Ledger Data</a></li>
+								<li><a href="<c:url value="/qasupport/ret-inv"/>">Add part paid outstanding</a></li>
+								<li><a href="<c:url value="/qasupport/ret-inv"/>">Update Ledger Data</a></li>
 							</ul>
 						</li>
 						

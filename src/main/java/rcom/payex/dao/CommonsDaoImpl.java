@@ -14,6 +14,8 @@ import org.springframework.stereotype.Repository;
 import rcom.payex.model.CPG;
 import rcom.payex.model.CPGDistributorMapping;
 import rcom.payex.model.Distributor;
+import rcom.payex.model.DistributorSetting;
+import rcom.payex.utils.Utils;
 
 @Repository
 public class CommonsDaoImpl implements CommonsDao {
@@ -72,12 +74,24 @@ public class CommonsDaoImpl implements CommonsDao {
 	@Override
 	public CPGDistributorMapping getCPGDistributorMapping(String payexCpgCode) {
 		try {
-			Criteria criteria = getSession().createCriteria(CPGDistributorMapping.class).add(Restrictions.eq("PAYEX_DISTRIBUTOR_CODE", payexCpgCode));
+			Criteria criteria = getSession().createCriteria(CPGDistributorMapping.class).add(Restrictions.eq("PAYEX_CPG_CODE", payexCpgCode));
 
 			return (CPGDistributorMapping) criteria.uniqueResult();
 
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	@Override
+	public DistributorSetting getDistributorSetting(String payexDistributorCode) {
+		try {
+			DistributorSetting setting = (DistributorSetting) getSession().createCriteria(DistributorSetting.class).setReadOnly(true)
+					.add(Restrictions.eq("PAYEX_DISTRIBUTOR_CODE", payexDistributorCode)).uniqueResult();
+			return setting;
+		} catch (Exception e) {
+			logger.error(Utils.getStackTrace(e));
 		}
 		return null;
 	}

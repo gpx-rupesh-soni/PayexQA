@@ -304,4 +304,11 @@ public class LedgerService {
 			e.printStackTrace();
 		}
 	}
+	
+	@Transactional(readOnly = true)
+	public List<CentralInvoices> getInvoicesDetails(String payexCpgCode, String payexRetailerCode, String cpgInvoiceNumber){
+		return invoiceTransactionDao.getInvoicesDetails(payexCpgCode, payexRetailerCode, cpgInvoiceNumber);
+	}
+	
+	
 }
