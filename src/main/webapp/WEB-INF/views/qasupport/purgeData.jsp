@@ -3,7 +3,19 @@
 	<table>
 	<tr>
 	<td>
-		<div id="op-header" 
+		<div id="op-header"
+			style="margin-left: 40px; height: 40px; width: 200px;">
+			<h4>Purge For:</h4>
+			<select id="purgeFor" name="purgeFor" class="form-control"
+				style="border: 0; width: 100%;" >
+				<option disabled selected>-------select Purge For-------</option>
+				<option value="ledger">Ledger</option>
+				<option value="viewfile">View File</option>
+			</select>
+			</div>
+	</td>
+	<td>
+		<div id="op-header"
 			style="margin-left: 40px; height: 40px; width: 200px;">
 			<h4>Doc Type:</h4>
 			<select id="docType" name="docType" class="form-control"
@@ -76,12 +88,14 @@ function handleResponse(action, response){
 var response;
 function purgeData(action){
 
+	var purgeFor = $("#purgeFor").val();
 	var docType = $("#docType").val();
 	var payexCpgCode = $("#payexCpgCode").val();
 	var retailerCode = $("#retailerCode").val();
 	var payexRetailerCode = $("#payexRetailerCode").val();
-	
+
 	var postData = {
+			purgeFor:purgeFor,
 			docType:docType,
 			payexCpgCode:payexCpgCode,
 			retailerCode:retailerCode,

@@ -400,16 +400,23 @@ public class QASupportController extends HttpServlet {
 	@RequestMapping(value = "/purgeData", method = RequestMethod.POST)
 	@ResponseBody
 	public String purgeDataPost(Model model, HttpSession session,
+			@RequestParam(value = "purgeFor", required = true) String purgeFor,
 			@RequestParam(value = "docType", required = true) String docType,
 			@RequestParam(value = "payexCpgCode", required = false, defaultValue = "") String payexCpgCode,
 			@RequestParam(value = "retailerCode", required = false, defaultValue = "") String retailerCode,
 			@RequestParam(value = "payexRetailerCode", required = false, defaultValue = "") String payexRetailerCode) {
 
 		if (!isLoged(session))return "redirect:../login";
-		logger.info("docType : "+docType+" , payexCpgCode : "+payexCpgCode+" , retailerCode : "+retailerCode+" , payexRetailerCode : "+payexRetailerCode);
+		logger.info("purgeFor : "+purgeFor+" , docType : "+docType+" , payexCpgCode : "+payexCpgCode+" , retailerCode : "+retailerCode+" , payexRetailerCode : "+payexRetailerCode);
 
 		JSONObject res = new JSONObject();
 		try {
+			// purgeFor is must : ledger or viewfile
+			if (!QASupportService.PURGE_FOR_LEDGER.equalsIgnoreCase(purgeFor) && !QASupportService.PURGE_FOR_VIEW_FILE.equalsIgnoreCase(purgeFor)) {
+				res.put("status", "FAILED");
+				res.put("message", "purgeFor must be " + QASupportService.PURGE_FOR_LEDGER + " or " + QASupportService.PURGE_FOR_VIEW_FILE);
+				return res.toString();
+			}
 			// payexCpgCode and (retailerCode or payexRetailerCode) are must
 			if (payexCpgCode.trim().isEmpty()) {
 				res.put("status", "FAILED");
@@ -422,7 +429,14 @@ public class QASupportController extends HttpServlet {
 				return res.toString();
 			}
 			res.put("status", "SUCCESS");
-			res.put("data", qaSupportService.purgeData(docType, payexCpgCode, retailerCode, payexRetailerCode));
+			res.put("data", qaSupportService.purgeData(purgeFor.trim(), docType, payexCpgCode, retailerCode, payexRetailerCode));
+		} catch (IllegalArgumentException | IllegalStateException e) {
+			try {
+				res.put("status", "FAILED");
+				res.put("message", e.getMessage());
+			} catch (JSONException je) {
+				logger.info(Utils.getStackTrace(je));
+			}
 		} catch (JSONException e) {
 			logger.info(Utils.getStackTrace(e));
 		}

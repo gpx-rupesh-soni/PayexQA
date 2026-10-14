@@ -414,20 +414,8 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 		boolean isAll = "all".equals(type);
 
 		// common where clause; transaction core keeps the retailer code in CPG_RETAILER_CODE
-		StringBuilder where = new StringBuilder(" where 1=1");
-		StringBuilder whereTxn = new StringBuilder(" where 1=1");
-		if (hasCpgCode) {
-			where.append(" and PAYEX_CPG_CODE =:PAYEX_CPG_CODE");
-			whereTxn.append(" and PAYEX_CPG_CODE =:PAYEX_CPG_CODE");
-		}
-		if (hasRetailerCode) {
-			where.append(" and RETAILER_CODE in (:RETAILER_CODE)");
-			whereTxn.append(" and CPG_RETAILER_CODE in (:RETAILER_CODE)");
-		}
-		if (hasPayexRetailerCode) {
-			where.append(" and PAYEX_RETAILER_CODE in (:PAYEX_RETAILER_CODE)");
-			whereTxn.append(" and PAYEX_RETAILER_CODE in (:PAYEX_RETAILER_CODE)");
-		}
+		String where = buildRetailerDataWhere("RETAILER_CODE", hasCpgCode, hasRetailerCode, hasPayexRetailerCode);
+		String whereTxn = buildRetailerDataWhere("CPG_RETAILER_CODE", hasCpgCode, hasRetailerCode, hasPayexRetailerCode);
 
 		try {
 			if (isAll || "inv".equals(type) || "dn".equals(type)) {
@@ -463,6 +451,67 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 		}
 
 		return res;
+	}
+
+	@Override
+	public List<Object[]> getRetailerViewFileDocs(String docType, String payexCpgCode, String retailerCode, String payexRetailerCode) {
+
+		logger.info("getRetailerViewFileDocs called...");
+		logger.info("docType : "+docType+", payexCpgCode : "+payexCpgCode+", retailerCode : "+retailerCode+", payexRetailerCode : "+payexRetailerCode);
+		Session session = getSession();
+		List<Object[]> docs = new ArrayList<>();
+
+		boolean hasCpgCode = payexCpgCode != null && !payexCpgCode.trim().isEmpty();
+		List<String> retailerCodes = splitCodes(retailerCode);
+		List<String> payexRetailerCodes = splitCodes(payexRetailerCode);
+		boolean hasRetailerCode = !retailerCodes.isEmpty();
+		boolean hasPayexRetailerCode = !payexRetailerCodes.isEmpty();
+
+		if (!hasCpgCode || (!hasRetailerCode && !hasPayexRetailerCode)) {
+			logger.info("getRetailerViewFileDocs : payexCpgCode and (retailerCode or payexRetailerCode) are required");
+			return docs;
+		}
+
+		String type = docType == null || docType.trim().isEmpty() ? "all" : docType.trim().toLowerCase();
+		boolean isAll = "all".equals(type);
+		String where = buildRetailerDataWhere("RETAILER_CODE", hasCpgCode, hasRetailerCode, hasPayexRetailerCode);
+		NativeQuery query;
+
+		// each row : [doc kind (INV / CN), doc number, doc date, view type, payex distributor code]
+		if (isAll || "inv".equals(type) || "dn".equals(type)) {
+			String sqlInv = "select 'INV', CPG_INVOICE_NUMBER, CPG_INCVOICE_DATE, VIEW_TYPE, PAYEX_DISTRIBUTOR_CODE from payex_central_invoices" + where;
+			if ("inv".equals(type)) {
+				sqlInv += " and INVOICE_TYPE = 0";
+			} else if ("dn".equals(type)) {
+				sqlInv += " and INVOICE_TYPE = 4";
+			}
+			query = session.createNativeQuery(sqlInv);
+			setRetailerDataParams(query, payexCpgCode.trim(), retailerCodes, payexRetailerCodes);
+			docs.addAll(query.list());
+		}
+
+		if (isAll || "cn".equals(type)) {
+			String sqlCn = "select 'CN', CPG_CN_ID, CPG_STATRT_DATE, VIEW_TYPE, PAYEX_DISTRIBUTOR_CODE from retailer_credit_note" + where;
+			query = session.createNativeQuery(sqlCn);
+			setRetailerDataParams(query, payexCpgCode.trim(), retailerCodes, payexRetailerCodes);
+			docs.addAll(query.list());
+		}
+
+		return docs;
+	}
+
+	private String buildRetailerDataWhere(String retailerCodeColumn, boolean hasCpgCode, boolean hasRetailerCode, boolean hasPayexRetailerCode) {
+		StringBuilder where = new StringBuilder(" where 1=1");
+		if (hasCpgCode) {
+			where.append(" and PAYEX_CPG_CODE =:PAYEX_CPG_CODE");
+		}
+		if (hasRetailerCode) {
+			where.append(" and ").append(retailerCodeColumn).append(" in (:RETAILER_CODE)");
+		}
+		if (hasPayexRetailerCode) {
+			where.append(" and PAYEX_RETAILER_CODE in (:PAYEX_RETAILER_CODE)");
+		}
+		return where.toString();
 	}
 
 	private List<String> splitCodes(String codes) {

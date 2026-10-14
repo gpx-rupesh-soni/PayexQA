@@ -41,6 +41,8 @@ public interface InvoiceTransactionDao {
 	public JSONObject deleteTxn(long ppid);
 	public JSONObject deleteRetailerData(String docType, String payexCpgCode, String retailerCode, String payexRetailerCode);
 
+	public List<Object[]> getRetailerViewFileDocs(String docType, String payexCpgCode, String retailerCode, String payexRetailerCode);
+
 	public List<TxnApiLog> getTxnApiLog(String payexRetailerCode, Date createDate);
 	public TxnApiLog getTxnApiLog(Long payexPaymentId);
 	public List<Object[]> fetchPayexCentralInvoices(String invId);
