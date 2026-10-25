@@ -73,7 +73,12 @@
 
 	<bean id="dataSource" class="org.springframework.jndi.JndiObjectFactoryBean">
 		<property name="jndiName" value="${database.apache_connection}"/>
-		
+
+	</bean>
+
+	<!-- Plain JDBC access (CSV export, query parsing) on the same data source as Hibernate -->
+	<bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource" />
 	</bean>
 	
 	<bean id="multipartResolver"

@@ -1,5 +1,7 @@
 package rcom.payex.Controller;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -18,12 +20,16 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.CustomDateEditor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +43,8 @@ import rcom.payex.model.CentralInvoices;
 import rcom.payex.model.Retailer;
 import rcom.payex.model.TransactionCore;
 import rcom.payex.service.CommonService;
+import rcom.payex.service.CsvExportService;
+import rcom.payex.service.ExportQueryGeneratorService;
 import rcom.payex.service.InvoiceService;
 import rcom.payex.service.LedgerService;
 import rcom.payex.service.QASupportService;
@@ -72,6 +80,12 @@ public class QASupportController extends HttpServlet {
 
 	@Autowired
 	QASupportService qaSupportService;
+	
+	@Autowired
+	private ExportQueryGeneratorService queryGeneratorService;
+	
+	@Autowired
+	CsvExportService csvExportService;
 
 
 	@InitBinder
@@ -499,7 +513,86 @@ public class QASupportController extends HttpServlet {
 
 		//return mainLayout;
 	}
+	
+	@RequestMapping(value = "/vg-pull-data", method = RequestMethod.GET)
+	public String vgPullDataGet(Model model, HttpSession session) {
+		if (!isLoged(session))return "redirect:../login";
+		model.addAttribute("layout", "qasupport/vgPullData");
+		return mainLayout;
+	}
 
+	@GetMapping("/VG-cnpull-ledger")
+    @ResponseBody
+    public ResponseEntity<byte[]>VGuardCnPullDataExportByBuyers(
+    		@RequestParam(defaultValue = "") String payexRetailercode,
+    		@RequestParam(defaultValue = "false") boolean withMaster) throws Exception {  
+    	logger.info("start : "+ new Date());
+    	List<String> buyerCodes = Arrays.asList(payexRetailercode.split(","));
+    	List<String> queries = queryGeneratorService.exportQueriesForVGFifoPullOutstanding(buyerCodes, withMaster);
+    	logger.info("queries generated: "+ new Date());
+    	for (String query : queries) {
+    		logger.info("query : "+query);
+		}
+    	
+    	File out = csvExportService.exportQueriesToCsvWithoutColumnList(queries,buyerCodes.get(0));
+    	
+    	logger.info("temp file generated: "+ out.getAbsolutePath());
+    	
+        byte[] data = Files.readAllBytes(out.toPath());
 
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + out.getName() + "\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .contentLength(data.length)
+                .body(data);
+        
+    }
+
+	@RequestMapping(value = "/txn-compare", method = RequestMethod.GET)
+	public String txnCompareGet(Model model, HttpSession session) {
+		if (!isLoged(session))return "redirect:../login";
+		model.addAttribute("layout", "qasupport/txnCompare");
+		return mainLayout;
+	}
+
+	/**
+	 * Parks the txn, invoice and CN data of an old flow payment in a JSON file, to be run before its invoices and CNs are reverted.
+	 */
+	@GetMapping(value = "txn-snapshot/{ppi}", produces = "application/json")
+	@ResponseBody
+	public String saveTxnSnapshot(@PathVariable("ppi") long ppi) {
+		TransactionCore paymentDetails = ledgerService.getTransaction(ppi);
+		if(paymentDetails == null) {
+			JSONObject res = new JSONObject();
+			try {
+				res.put("Status", false);
+				res.put("msg", "No transaction found for PAYEX_PAYMENT_ID " + ppi);
+			} catch (JSONException e) {
+				logger.info(Utils.getStackTrace(e));
+			}
+			return res.toString();
+		}
+		return ledgerService.saveSnapshot(paymentDetails).toString();
+	}
+
+	/**
+	 * Compares an old flow payment (its snapshot, or the database when there is none) with the new flow payment.
+	 */
+	@GetMapping(value = "txn-compare/{oldPpi}/{newPpi}", produces = "application/json")
+	@ResponseBody
+	public String compareTxns(@PathVariable("oldPpi") long oldPpi, @PathVariable("newPpi") long newPpi) {
+		return ledgerService.compare(oldPpi, newPpi).toString();
+	}
+
+	/**
+	 * Previous compares (latest first), for picking an old/new pair to compare again.
+	 */
+	@GetMapping(value = "txn-compare-log", produces = "application/json")
+	@ResponseBody
+	public String compareLog() {
+		return ledgerService.getCompareLog().toString();
+	}
+	
+	
 
 }

@@ -41,9 +41,10 @@
 								<li><a href="<c:url value="/qasupport/txn-info"/>">Transaction Details</a></li>
 								<li><a href="<c:url value="/qasupport/update-txn"/>">Update Transaction</a></li>
 								<li><a href="<c:url value="/qasupport/update-doc"/>">Update Document</a></li>
+								<li><a href="<c:url value="/qasupport/txn-compare"/>">Snapshot &amp; Compare</a></li>
 							</ul>
 						</li>
-						
+
 						<li class="dropdown"><a class="dropdown-toggle"
 							data-toggle="dropdown" href="#">Payments<span class="caret"></span></a>
 							<ul class="dropdown-menu">
@@ -53,13 +54,9 @@
 						</li>
 						
 						<li class="dropdown"><a class="dropdown-toggle"
-							data-toggle="dropdown" href="#">Data Import<span class="caret"></span></a>
+							data-toggle="dropdown" href="#">Import/Export<span class="caret"></span></a>
 							<ul class="dropdown-menu">
-								<li><a href="<c:url value="/qasupport/update_retailer"/>">Update Retailer</a></li>
-								<li><a href="<c:url value="/qasupport/update-txn"/>">Update Transaction</a></li>
-								<li><a href="<c:url value="/qasupport/update-nach"/>">Update NACH</a></li>
-								<li><a href="<c:url value="/qasupport/update-doc"/>">Update Document</a></li>
-								<li><a href="<c:url value="/qasupport/neft-payment"/>">NEFT Payment</a></li>
+								<li><a href="<c:url value="/qasupport/vg-pull-data"/>">VG-PULL-DATA</a></li>
 							</ul>
 						</li>						
 						</c:if> 			

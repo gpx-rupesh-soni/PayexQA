@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.text.SimpleDateFormat;
 import java.util.Map;
 
 import org.apache.http.HttpResponse;
@@ -21,6 +22,8 @@ import rcom.payex.service.UrlService;
 public class Utils {
 	
 	static Logger logger = LogManager.getLogger(Utils.class);
+	
+	public static SimpleDateFormat date_without_time = new SimpleDateFormat("dd-MM-yyyy");
 
 	public static String getStackTrace(Exception e) {
 		final StringWriter sw = new StringWriter();

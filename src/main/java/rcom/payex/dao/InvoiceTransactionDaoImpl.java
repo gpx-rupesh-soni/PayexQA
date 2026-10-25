@@ -5,6 +5,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,10 +16,12 @@ import org.hibernate.SessionFactory;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.query.NativeQuery;
+import org.hibernate.transform.Transformers;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import rcom.payex.model.CentralInvoices;
@@ -40,6 +43,37 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 
 	protected Session getSession() {
 		return sessionFactory.getCurrentSession();
+	}
+	
+	private static final String TXN_QUERY = "SELECT PAYEX_PAYMENT_ID,PAYEX_RETAILER_CODE, MULTIPAY_COUNT, AMOUNT_TXN, AMOUNT_APPROVED, AMOUNT_CD, AMOUNT_CN, AMOUNT_BANK,"
+			+ " PAYMENT_DATE, PRESENTMENT_DATE, BANK_PROCESS_IN_DATE FROM PAYEX_TRANSACTION_CORE WHERE PAYEX_PAYMENT_ID = :ppi";
+
+	private static final String INVOICE_QUERY = "SELECT PAYEX_TRANSACTION_ID, AMOUNT_APPROVED, PAYABLE_AMOUNT, AMOUNT_CN, AMOUNT_CD, APPROVED_CD_DETAILS,"
+			+ " AMOUNT_BANK, DATE_TO_PAY, PRESENTMENT_DATE, PAYMENT_LOCK FROM PAYEX_CENTRAL_INVOICES WHERE PAYEX_PAYMENT_ID = :ppi";
+
+	private static final String CN_QUERY = "SELECT PAYEX_CN_ID, CN_STATUS, AMOUNT_USED, SEQUENCE_FLAG FROM RETAILER_CREDIT_NOTE"
+			+ " WHERE PAYEX_CN_ID IN (SELECT PAYEX_CN_ID FROM PAYEX_TXN_CN_INV WHERE PAYEX_PAYMENT_ID = :ppi)";
+	
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getTxnRows(long ppi) {
+		return getRows(TXN_QUERY, ppi);
+	}
+
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getInvoiceRows(long ppi) {
+		return getRows(INVOICE_QUERY, ppi);
+	}
+
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getCnRows(long ppi) {
+		return getRows(CN_QUERY, ppi);
+	}
+
+	@SuppressWarnings("unchecked")
+	private List<Map<String, Object>> getRows(String query, long ppi) {
+		NativeQuery nativeQuery = sessionFactory.getCurrentSession().createNativeQuery(query);
+		nativeQuery.setParameter("ppi", ppi);
+		return nativeQuery.setResultTransformer(Transformers.ALIAS_TO_ENTITY_MAP).list();
 	}
 
 	@Override

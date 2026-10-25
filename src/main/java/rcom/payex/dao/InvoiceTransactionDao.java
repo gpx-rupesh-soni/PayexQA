@@ -3,8 +3,12 @@ package rcom.payex.dao;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
+import org.hibernate.query.NativeQuery;
+import org.hibernate.transform.Transformers;
 import org.json.JSONObject;
+import org.springframework.transaction.annotation.Transactional;
 
 import rcom.payex.model.CentralInvoices;
 import rcom.payex.model.InvoiceTransaction;
@@ -47,4 +51,7 @@ public interface InvoiceTransactionDao {
 	public TxnApiLog getTxnApiLog(Long payexPaymentId);
 	public List<Object[]> fetchPayexCentralInvoices(String invId);
 	public List<TransactionCore> getTransactions(List<Long> payexPaymentIds);
+	public List<Map<String, Object>> getTxnRows(long ppi);
+	public List<Map<String, Object>> getInvoiceRows(long ppi);
+	public List<Map<String, Object>> getCnRows(long ppi);	
 }
