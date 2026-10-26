@@ -12,7 +12,7 @@
 			style="margin-left: 40px; height: 40px; width: 250px;">
 			<h4>Transaction ID:</h4>
 			<input type="text" id="payexPaymentId" name="payexPaymentId" 
-						placeholder="Please enter Payex Payment Id" autocomplete="off" value="${ppid}"/>
+						placeholder="Comma separated Payex Payment Ids" autocomplete="off" value="${ppid}"/>
 			</div>
 	</td>
 	<td>
@@ -25,12 +25,17 @@
 	</tr>
 	</table>
 	</form>
-		<c:if test="${not empty txnInfo}">
-		<div class="" id="txn-info-1"
-			style="margin-left: 40px; height: 20px; width: 80%;" align="left">
+		<c:forEach var="txnInfo" items="${txnInfos}">
+		<div class="txn-block"
+			style="margin-left: 40px; width: 80%;" align="left">
 			<br>
-			<br>
-			<table class="table table-bordered" id="txn-table">
+			<h4>PPID : ${txnInfo.ppid}</h4>
+			<c:choose>
+			<c:when test="${empty txnInfo.txn}">
+				<p class="text-danger">No transaction found for PPID ${txnInfo.ppid}</p>
+			</c:when>
+			<c:otherwise>
+			<table class="table table-bordered txn-table">
 				<thead>
 					<tr>
 						<th>PPID</th>
@@ -47,9 +52,8 @@
 						<th>Status</th>
 						<th>Action</th>
 					</tr>
-				<thead>
-				<tbody id="tableData">				
-					
+				</thead>
+				<tbody>
 				<tr>	
 					<td>${txnInfo.txn.payexPaymentId}</td>
 					<td>${txnInfo.txn.payexCpgCode}</td>
@@ -63,14 +67,12 @@
 					<td>${txnInfo.txn.amountBank}</td>
 					<td>${txnInfo.txn.paymentModeDesc}</td>	
 					<td>${txnInfo.txn.paymentStatus}</td>
-					<td><button id="btn-api-log" onclick="validateInvoiceTable();">validate</button></td>
+					<td><button onclick="validateInvoiceTable(this);">validate</button></td>
 				</tr>
-				
-
 				</tbody>
 			</table>
 			
-			<table class="table table-bordered" id="inv-table">
+			<table class="table table-bordered inv-table">
 				<thead>
 					<tr>
 						<th>Inv ID</th>
@@ -88,8 +90,8 @@
 						<th>Bank Amt</th>
 						<th>Status</th>
 					</tr>
-				<thead>
-				<tbody id="tableData">				
+				</thead>
+				<tbody>				
 				<c:forEach var="inv" items="${txnInfo.inv}">	
 				<tr>	
 					<td>${inv.PAYEX_TRANSACTION_ID}</td>
@@ -108,12 +110,11 @@
 					<td>${inv.PROCESS_STATUS}/${inv.ACTIVE_FLAG}</td>					
 				</tr>
 				</c:forEach>
-
 				</tbody>
 			</table>
 			
 			<c:if test="${not empty txnInfo.cn}">
-				<table class="table table-bordered" id="inv-table">
+				<table class="table table-bordered cn-table">
 				<thead>
 					<tr>
 						<th>CN ID</th>
@@ -127,8 +128,8 @@
 						<th>Part Pay</th>
 						<th>Status</th>
 					</tr>
-				<thead>
-				<tbody id="tableData">				
+				</thead>
+				<tbody>				
 				<c:forEach var="cn" items="${txnInfo.cn}">	
 				<tr>	
 					<td>${cn.PAYEX_CN_ID}</td>
@@ -143,61 +144,56 @@
 					<td>${cn.CN_STATUS}</td>					
 				</tr>
 				</c:forEach>
-
 				</tbody>
 				</table>				
 			</c:if>
 			
-			<button id="btn-api-log" onclick="handleAction('api-log', ${ppid})">apiLog</button>
-			<button id="btn-others"onclick="handleAction('other-info', ${ppid})">Other Info</button>	
-			<table class="table table-bordered" id="log-table" style="display: none;">
+			<button onclick="handleAction('api-log', ${txnInfo.ppid}, this)">apiLog</button>
+			<button onclick="handleAction('other-info', ${txnInfo.ppid}, this)">Other Info</button>	
+			<table class="table table-bordered log-table" style="display: none;">
 				<thead><tr><th>Log id</th><th>Request</th><th>Response</th></tr></thead>
-				<tbody id="apiLog-tableData"></tbody>
-		</table>		
-		</div>		
-		</c:if>
+				<tbody class="apiLog-tableData"></tbody>
+			</table>
+			</c:otherwise>
+			</c:choose>
+			<hr/>
+		</div>
+		</c:forEach>
 </div>
 
 
 <script type="text/javascript">
 
-function handleAction(action, ppid){
-	alert(action);
+function handleAction(action, ppid, element){
 	if("api-log"===action){
-		alert(action);
-		getApiLog(action,ppid);
+		getApiLog(action, ppid, $(element).closest(".txn-block"));
 	}
 }
 
-function handleResponse(action, response){	
-	alert("handleResponse called : "+JSON.stringify(response));
-	if("api-log"===action){
-		showApiLog(response);
-	}
-}
-
-var response;
-function getApiLog(action,ppid){
+function getApiLog(action, ppid, block){
 	var postData = {
 			action:action,
-			ppid:ppid
-	    };	
-	getInvoiceInfo(postData);
+			payexPaymentId:ppid
+	    };
+	getTxnOtherInfo(postData, function (response) {
+		showApiLog(response, block);
+	});
 }
 
-function showApiLog(response) {
-	alert("handleResponse called : "+JSON.stringify(response.apiLog));
-	var tableRow = "<tr class="+'"'+response.apiLog.id+'"'+">"			
-			+ "<td>"+ JSON.stringify(response.apiLog.req) +"</td>"
-			+ "<td>"+ JSON.stringify(response.apiLog.res) +"</td>"
-			+ "</tr>";
-	console.log(tableRow);
-	$(tableRow).appendTo('#apiLog-tableData');
-	$("#log-table").show();
+function showApiLog(response, block) {
+	if(!response.apiLog){
+		alert("No API log found");
+		return;
+	}
+	var tableRow = $("<tr/>")
+			.append($("<td/>").text(response.apiLog.id))
+			.append($("<td/>").text(JSON.stringify(response.apiLog.req)))
+			.append($("<td/>").text(JSON.stringify(response.apiLog.res)));
+	block.find(".apiLog-tableData").empty().append(tableRow);
+	block.find(".log-table").show();
 }
 
-
-function getInvoiceInfo(postData,action){
+function getTxnOtherInfo(postData, onSuccess){
 	
 	// ---- POST call ----
     $.ajax({
@@ -206,21 +202,20 @@ function getInvoiceInfo(postData,action){
         data: postData,
         dataType: "json",
         success: function (response) {
-            // Handle success response
             console.log(response);            
-            handleResponse(postData.action, response);           
+            onSuccess(response);
         },
         error: function (xhr, status, error) {
             alert("Server error: " + error);
-            $("#retInfo").hide();
         }
     });	
 	
 	}
 	
-function validateInvoiceTable() {
+function validateInvoiceTable(element) {
 
-    const table = document.getElementById("inv-table");
+    // invoices of the transaction whose validate was clicked
+    const table = element.closest(".txn-block").querySelector(".inv-table");
     const rows = table.querySelectorAll("tbody tr");
 
     rows.forEach(row => {

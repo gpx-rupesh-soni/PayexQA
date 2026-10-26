@@ -247,7 +247,7 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 	}
 
 	@Override
-	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, int status, Long payexPaymentId) {
+	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, int status, List<Long> payexPaymentIds) {
 
 		Criteria criteria = getSession().createCriteria(TransactionCore.class);
 
@@ -264,11 +264,12 @@ public class InvoiceTransactionDaoImpl implements InvoiceTransactionDao {
 	        criteria.add(Restrictions.eq("paymentStatus", status));
 	    }
 
-	    if (payexPaymentId !=null) {
-	        criteria.add(Restrictions.eq("payexPaymentId", payexPaymentId));
+	    if (payexPaymentIds != null && !payexPaymentIds.isEmpty()) {
+	        criteria.add(Restrictions.in("payexPaymentId", payexPaymentIds));
 	    }
 
-	    criteria.setMaxResults(20);
+	    // all the asked ids are listed, a search without ids is capped
+	    criteria.setMaxResults(Math.max(20, payexPaymentIds == null ? 0 : payexPaymentIds.size()));
 	    criteria.addOrder(Order.desc("transactionDate"));
 
 		return criteria.list();

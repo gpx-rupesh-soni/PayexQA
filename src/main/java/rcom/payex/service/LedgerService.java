@@ -54,6 +54,9 @@ public class LedgerService {
 
 	private static final String SNAPSHOT_DIR = "D:/ApplicationLog/PayexApi/VG-CN-Pull-Compare/";
 	/** Dates are compared by day, the time of a run never matches */
+	/** Free text about the payment kept in its snapshot, for identifying it later */
+	private static final String TAG = "tag";
+	private static final String TAG_UPDATED = "tagUpdated";
 	/** One JSON line per compare run */
 	private static final String COMPARE_LOG = SNAPSHOT_DIR + "compare-log.txt";
 	private static final String DATE_FORMAT = "yyyy-MM-dd";
@@ -109,7 +112,8 @@ public class LedgerService {
 				break;
 			}
 		
-		return invoiceTransactionDao.getTransactions(payexCpgCode, payexRetailerCode, paymentStatus, payexPaymentId);		
+		return invoiceTransactionDao.getTransactions(payexCpgCode, payexRetailerCode, paymentStatus,
+				payexPaymentId == null ? Collections.<Long>emptyList() : Collections.singletonList(payexPaymentId));		
 	}
 	
 	@Transactional(readOnly = true)
@@ -353,6 +357,12 @@ public class LedgerService {
 					resp.put("msg", "No transaction found for PAYEX_PAYMENT_ID " + paymentDetails.getPayexPaymentId());
 					return resp;
 				}
+				// a retaken snapshot keeps the tag of the earlier one
+				JSONObject earlier = readSnapshotFile(file);
+				if(earlier != null && earlier.has(TAG)) {
+					snapshot.put(TAG, earlier.opt(TAG));
+					snapshot.put(TAG_UPDATED, earlier.opt(TAG_UPDATED));
+				}
 				writeSnapshot(file, snapshot);
 				resp.put("Status", true);
 				resp.put("file", file.toString());
@@ -368,6 +378,44 @@ public class LedgerService {
 			try {
 				resp.put("Status", false);
 				resp.put("msg", "Snapshot not saved : " + e.getLocalizedMessage());
+			} catch (JSONException e1) {
+				e1.printStackTrace();
+			}
+		}
+		return resp;
+	}
+
+	/**
+	 * Sets the tag of a payment's snapshot, an empty tag removes it. The snapshot must exist.
+	 */
+	public synchronized JSONObject setSnapshotTag(long ppi, String tag) {
+		JSONObject resp = new JSONObject();
+		Path file = snapshotFile(ppi);
+		try {
+			JSONObject snapshot = readSnapshotFile(file);
+			if(snapshot == null) {
+				resp.put("Status", false);
+				resp.put("msg", "No snapshot for PAYEX_PAYMENT_ID " + ppi + ", take the snapshot first");
+				return resp;
+			}
+			String text = tag == null ? "" : tag.trim();
+			if(text.isEmpty()) {
+				snapshot.remove(TAG);
+				snapshot.remove(TAG_UPDATED);
+			} else {
+				snapshot.put(TAG, text);
+				snapshot.put(TAG_UPDATED, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
+			}
+			writeSnapshot(file, snapshot);
+			resp.put("Status", true);
+			resp.put("ppi", ppi);
+			resp.put(TAG, snapshot.opt(TAG) == null ? JSONObject.NULL : snapshot.opt(TAG));
+			resp.put(TAG_UPDATED, snapshot.opt(TAG_UPDATED) == null ? JSONObject.NULL : snapshot.opt(TAG_UPDATED));
+		} catch (IOException | JSONException e) {
+			logger.error(Utils.getStackTrace(e));
+			try {
+				resp.put("Status", false);
+				resp.put("msg", "Tag not saved : " + e.getLocalizedMessage());
 			} catch (JSONException e1) {
 				e1.printStackTrace();
 			}
@@ -429,6 +477,7 @@ public class LedgerService {
 		}
 		resp.put(side + "Source", file.toString());
 		resp.put(side + "SnapshotCreated", created);
+		resp.put(side + "Tag", snapshot.opt(TAG) == null ? JSONObject.NULL : snapshot.opt(TAG));
 		return snapshot;
 	}
 
@@ -480,9 +529,14 @@ public class LedgerService {
 					last.put("count", last.optInt("count") + 1);
 				}
 			}
+			// tags as they are now in the snapshots, a tag can be added after the compare
+			Map<Object, Object> tags = new HashMap<>();
 			JSONArray list = new JSONArray();
-			for(JSONObject entry : byPair.values())
+			for(JSONObject entry : byPair.values()) {
+				entry.put("oldTag", tagOf(entry.opt("oldPpi"), tags));
+				entry.put("newTag", tagOf(entry.opt("newPpi"), tags));
 				list.put(entry);
+			}
 			resp.put("Status", true);
 			resp.put("list", list);
 		} catch (IOException | JSONException e) {
@@ -495,6 +549,27 @@ public class LedgerService {
 			}
 		}
 		return resp;
+	}
+
+	private Object tagOf(Object ppi, Map<Object, Object> tags) {
+		if(!tags.containsKey(ppi)) {
+			Object tag = null;
+			try {
+				JSONObject snapshot = readSnapshotFile(snapshotFile(Long.parseLong(String.valueOf(ppi))));
+				tag = snapshot == null ? null : snapshot.opt(TAG);
+			} catch (IOException | JSONException | NumberFormatException e) {
+				logger.error("VG CN Pull Compare : tag of {} not read : {}", ppi, e.getLocalizedMessage());
+			}
+			tags.put(ppi, tag == null ? JSONObject.NULL : tag);
+		}
+		return tags.get(ppi);
+	}
+
+	/** The snapshot in the file, null when there is no file */
+	private JSONObject readSnapshotFile(Path file) throws IOException, JSONException {
+		if(!Files.exists(file))
+			return null;
+		return new JSONObject(new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
 	}
 
 	private void writeSnapshot(Path file, JSONObject snapshot) throws IOException, JSONException {

@@ -38,7 +38,7 @@ public interface InvoiceTransactionDao {
 
 	public InvoiceTransaction getInvoiceByPayexPaymentId(Long payexPaymentId);
 
-	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, int status, Long payexPaymentId);
+	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, int status, List<Long> payexPaymentIds);
 	public TransactionCore getTransaction(Long payexPaymentId);
 
 	public JSONObject updateTxnAsPending(long ppid);

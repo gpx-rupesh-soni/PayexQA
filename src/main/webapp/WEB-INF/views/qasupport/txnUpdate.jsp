@@ -70,15 +70,21 @@
 			<table class="table table-bordered" id="table">
 				<thead>
 					<tr>
-						<th>Payment ID</th>
-						<th>Retailer Code</th>
-						<th>Transaction ID</th>
-						<th>Invoice Number</th>
-						<th>Invoice Amount</th>
-						<th>Total Amount Due</th>
+						<th>PPID</th>
+						<th>CPG Code</th>
+						<th>Retailer</th>
+						<th>App. Date</th>
+						<th>Pay Date</th>
+						<th>Txn Amt</th>
+						<th>CD Amt</th>
+						<th>App. Amt</th>
+						<th>CN Amt</th>
+						<th>Bank Amt</th>
+						<th>Mode</th>
+						<th>Status</th>
 						<th>Action</th>
 					</tr>
-				<thead>
+				</thead>
 				<tbody id="tableData">
 				
 				<c:forEach var="txn" items="${txns}">	
@@ -86,9 +92,15 @@
 					<td>${txn.payexPaymentId}</td>
 					<td>${txn.payexCpgCode}</td>
 					<td>${txn.payexRetailerCode}</td>
-					<td>${txn.amountBank}</td>
+					<td>${txn.approvedOn}</td>
 					<td>${txn.dateToPay}</td>
+					<td>${txn.amountPresented}</td>
+					<td>${txn.amountCd}</td>
+					<td>${txn.amountApproved}</td>
+					<td>${txn.amountCn}</td>
 					<td>${txn.amountBank}</td>
+					<td>${txn.paymentModeDesc}</td>
+					<td>${txn.paymentStatus}</td>
 					<td>
 					<div class="dropdown">
 				        <button class="btn btn-light btn-sm dropdown-toggle"
@@ -151,24 +163,39 @@ function updateRecord(action,id, element) {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Delete failed');
+            throw new Error('Server error : ' + response.status + ' ' + response.statusText);
         }
-        return response.json(); // expected { success: true }
+        return response.json(); // { action, msg, data : { counts... }, success }
     })
     .then(data => {
-    	console.error(data);
-    	alert(data.msg);
+    	console.log(data);
+        alert(formatActionResponse(id, data));
         if (data.success) {
-        	alert(data.data);
-            removeTableRow(element);            
-        } else {
-            alert('Delete failed on server');
+            removeTableRow(element);
         }
     })
     .catch(error => {
         console.error(error);
-        alert('Error while deleting record');
+        alert(action.toUpperCase() + ' failed for Payment ID ' + id + '\n' + error.message);
     });
+}
+
+/** the action response as readable lines : message, then each value of data (update counts etc.) */
+function formatActionResponse(id, res) {
+    var lines = [(res.action || '') + ' : Payment ID ' + id,
+                 res.msg || (res.success ? 'Action completed.' : 'Action failed on server.')];
+    if (res.data && typeof res.data === 'object') {
+        lines.push('');
+        for (var key in res.data) {
+            var value = res.data[key];
+            lines.push(key + ' : ' + (value !== null && typeof value === 'object' ? JSON.stringify(value) : value));
+        }
+    } else if (res.data !== undefined && res.data !== null) {
+        lines.push('', String(res.data));
+    } else if (res.success) {
+        lines.push('', 'No data returned for this action.');
+    }
+    return lines.join('\n');
 }
 
 function removeTableRow(element) {

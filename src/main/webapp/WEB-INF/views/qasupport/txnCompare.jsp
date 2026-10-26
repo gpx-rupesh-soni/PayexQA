@@ -16,6 +16,10 @@
 	#txn-compare-main .log-link { margin-left: 10px; }
 	#compareLogPanel .table-scroll { max-height: 300px; overflow-y: auto; }
 	#compareLogPanel table td, #compareLogPanel table th { font-size: 12px; vertical-align: middle; }
+	#txn-compare-main .snapshot-tag { width: 100%; margin-top: 8px; resize: vertical; }
+	#txn-compare-main .tag-text { white-space: pre-wrap; font-style: italic; }
+	#txn-compare-main .tag-editor textarea { width: 100%; max-width: 600px; margin: 4px 0; resize: vertical; }
+	#compareLogPanel .log-tag { display: block; max-width: 250px; white-space: normal; color: #777; font-style: italic; }
 </style>
 
 <div id="txn-compare-main">
@@ -33,6 +37,8 @@
 						</div>
 						<button class="btn btn-primary" onclick="takeSnapshot()">Snapshot</button>
 					</div>
+					<textarea id="snapshotTag" class="form-control snapshot-tag" rows="2"
+						placeholder="Tag (optional) : a few words about this transaction, for identifying it later"></textarea>
 				</div>
 			</div>
 		</div>
@@ -92,7 +98,16 @@ function takeSnapshot(){
 		alert("Please enter PPID");
 		return;
 	}
-	callApi(baseUrl + "txn-snapshot/" + ppi, "Snapshot of PPID " + ppi, showSnapshot);
+	var tag = $.trim($("#snapshotTag").val());
+	callApi(baseUrl + "txn-snapshot/" + ppi, "Snapshot of PPID " + ppi, function (response) {
+		showSnapshot(response);
+		// the tag goes in the snapshot once it is saved
+		if(tag)
+			saveTag(ppi, tag, function (tagResponse) {
+				$("#snapshotTag").val("");
+				$("#snapshotTagView").html(tagHtml(ppi, tagResponse.tag));
+			});
+	});
 }
 
 function compareTxns(){
@@ -151,8 +166,8 @@ function showCompareLog(list){
 	for(var i = 0; i < list.length; i++){
 		var entry = list[i];
 		html += '<tr><td>' + esc(entry.time) + '</td>'
-			+ '<td>' + esc(entry.oldPpi) + '</td>'
-			+ '<td>' + esc(entry.newPpi) + '</td>'
+			+ '<td>' + esc(entry.oldPpi) + logTag(entry.oldTag) + '</td>'
+			+ '<td>' + esc(entry.newPpi) + logTag(entry.newTag) + '</td>'
 			+ '<td>' + statusLabel(entry.matched, entry.matched ? "MATCHED" : "NOT MATCHED") + '</td>'
 			+ '<td>' + matchText(entry.txnMatched === undefined ? null : { matched: entry.txnMatched }) + '</td>'
 			+ '<td>' + matchText(entry.invoicesMatched === undefined ? null : { matched: entry.invoicesMatched }) + '</td>'
@@ -204,7 +219,8 @@ function showSnapshot(response){
 	var txn = snapshot.transaction || {};
 	$("#resultSummary").html(statusLabel(true, "SAVED") + ' File : <code>' + esc(response.file) + '</code>'
 		+ '<br/><small>PPID : ' + esc(snapshot.ppi) + ' | Snapshot time : ' + esc(snapshot.snapshotTime)
-		+ ' | Invoices : ' + count(snapshot.invoices) + ' | Credit notes : ' + count(snapshot.creditNotes) + '</small>');
+		+ ' | Invoices : ' + count(snapshot.invoices) + ' | Credit notes : ' + count(snapshot.creditNotes) + '</small>'
+		+ '<br/><small>Tag : <span id="snapshotTagView">' + tagHtml(snapshot.ppi, snapshot.tag) + '</span></small>');
 
 	var html = '<h4>Transaction</h4>' + columnValueTable(txn);
 	html += '<h4>Invoices <small>' + count(snapshot.invoices) + '</small></h4>' + recordsTable(snapshot.invoices);
@@ -258,6 +274,8 @@ function showCompare(response){
 	$("#resultSummary").html(statusLabel(response.matched, response.matched ? "MATCHED" : "NOT MATCHED")
 		+ '<br/><small>Old snapshot : <code>' + esc(response.oldSource) + '</code>' + createdText(response.oldSnapshotCreated)
 		+ ' | New snapshot : <code>' + esc(response.newSource) + '</code>' + createdText(response.newSnapshotCreated) + '</small>'
+		+ '<br/><small>Old tag : <span>' + tagHtml(response.oldPpi, response.oldTag) + '</span></small>'
+		+ '<br/><small>New tag : <span>' + tagHtml(response.newPpi, response.newTag) + '</span></small>'
 		+ '<br/><small>Transaction : ' + matchText(response.transaction)
 		+ ' | Invoices : ' + matchText(inv) + ' (old ' + esc(inv.oldCount) + ' / new ' + esc(inv.newCount) + ')'
 		+ ' | Credit notes : ' + matchText(cn) + ' (old ' + esc(cn.oldCount) + ' / new ' + esc(cn.newCount) + ')</small>');
@@ -338,6 +356,63 @@ function valueCells(row, columns, diffSet){
 		html += '<td class="val' + (diffSet[columns[c]] ? ' danger' : '') + '">' + esc(value) + '</td>';
 	}
 	return html;
+}
+
+/* ---------- snapshot tag ---------- */
+
+/** the tag of a snapshot with an edit link; the html goes inside a span, which the editor replaces */
+function tagHtml(ppi, tag){
+	var text = tag ? '<span class="tag-text">' + esc(tag) + '</span>' : '<span class="text-muted">none</span>';
+	return text + ' <a href="#" data-ppi="' + Number(ppi) + '" data-tag="' + (tag ? esc(tag).replace(/"/g, '&quot;') : '')
+		+ '" onclick="editTag(this); return false;">' + (tag ? 'edit' : 'add') + '</a>';
+}
+
+function editTag(link){
+	var holder = $(link).parent();
+	var ppi = $(link).data("ppi");
+	var tag = $(link).attr("data-tag") || "";
+	var editor = $('<div class="tag-editor"/>')
+		.append($('<textarea class="form-control" rows="2"/>').val(tag))
+		.append($('<button class="btn btn-primary btn-xs">Save</button>'))
+		.append(' ')
+		.append($('<button class="btn btn-default btn-xs">Cancel</button>'));
+	editor.find(".btn-primary").on("click", function () {
+		saveTag(ppi, $.trim(editor.find("textarea").val()), function (response) {
+			holder.html(tagHtml(ppi, response.tag));
+		});
+	});
+	editor.find(".btn-default").on("click", function () {
+		holder.html(tagHtml(ppi, tag));
+	});
+	holder.empty().append(editor);
+	editor.find("textarea").focus();
+}
+
+/** saves the tag in the snapshot of the ppi, an empty tag removes it */
+function saveTag(ppi, tag, onSaved){
+	$.ajax({
+		url: baseUrl + "txn-snapshot-tag/" + ppi,
+		type: "POST",
+		contentType: "application/json",
+		data: JSON.stringify({ tag: tag }),
+		dataType: "json",
+		success: function (response) {
+			if(response.Status === false){
+				alert("Tag not saved : " + response.msg);
+				return;
+			}
+			onSaved(response);
+			if($("#compareLogPanel").is(":visible"))
+				loadCompareLog();
+		},
+		error: function (xhr, status, error) {
+			alert("Tag not saved, server error : " + error);
+		}
+	});
+}
+
+function logTag(tag){
+	return tag ? '<span class="log-tag">' + esc(tag) + '</span>' : '';
 }
 
 /* ---------- helpers ---------- */

@@ -76,7 +76,7 @@ public class CommonService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, String type, Long payexPaymentId) {
+	public List<TransactionCore> getTransactions(String payexCpgCode, String payexRetailerCode, String type, List<Long> payexPaymentIds) {
 
 		int paymentStatus = 0;
 		if(type!=null)
@@ -97,7 +97,7 @@ public class CommonService {
 				break;
 			}
 
-		return invoiceTransactionDao.getTransactions(payexCpgCode, payexRetailerCode, paymentStatus, payexPaymentId);
+		return invoiceTransactionDao.getTransactions(payexCpgCode, payexRetailerCode, paymentStatus, payexPaymentIds);
 	}
 
 	@Transactional(readOnly = true)

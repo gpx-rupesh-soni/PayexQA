@@ -3,6 +3,7 @@ package rcom.payex.Controller;
 import java.io.File;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -197,24 +198,45 @@ public class QASupportController extends HttpServlet {
 		return res.toString();
 	}
 
+	/** One or more payment ids separated by comma / space, ids that are not numbers are skipped, repeated ids kept once */
+	private List<Long> parsePaymentIds(String payexPaymentId) {
+		List<Long> ids = new ArrayList<Long>();
+		if(!StringUtils.hasText(payexPaymentId))
+			return ids;
+		for(String id : payexPaymentId.trim().split("[,\\s]+"))
+			try {
+				Long ppid = Long.valueOf(id);
+				if(!ids.contains(ppid))
+					ids.add(ppid);
+			} catch (NumberFormatException e) {
+				logger.info("invalid payexPaymentId skipped : " + id);
+			}
+		return ids;
+	}
+
 	@RequestMapping(value = "/txn-info", method = RequestMethod.GET)
 	public String txnDetailsGet(Model model, HttpSession session,
 			@RequestParam(value = "txnType", required = false) String txnType,
 			@RequestParam(value = "payexCpgCode", required = false) String payexCpgCode,
 			@RequestParam(value = "payexRetailerCode", required = false) String payexRetailerCode,
-			@RequestParam(value = "payexPaymentId", required = false) Long payexPaymentId) {
+			@RequestParam(value = "payexPaymentId", required = false) String payexPaymentId) {
 
 		//if (!isLoged(session))return "redirect:../login";
 
 		System.out.println("type : "+txnType);
-		if(payexPaymentId!=null && payexPaymentId>0)
-			model.addAttribute("ppid", payexPaymentId);
+		List<Long> payexPaymentIds = parsePaymentIds(payexPaymentId);
+		if(!payexPaymentIds.isEmpty())
+			model.addAttribute("ppid", payexPaymentId.trim());
 
-		if(StringUtils.hasText(txnType) || payexPaymentId!=null){
-			System.out.println("type : "+txnType);
-			Map<String, Object> txnInfo = commonService.getTransactionInfo(payexPaymentId);
-			model.addAttribute("txnInfo", txnInfo);
+		// one block of txn, invoices and CNs per asked id, in the order asked
+		List<Map<String, Object>> txnInfos = new ArrayList<Map<String, Object>>();
+		for(Long ppid : payexPaymentIds) {
+			Map<String, Object> txnInfo = commonService.getTransactionInfo(ppid);
+			txnInfo.put("ppid", ppid);
+			txnInfos.add(txnInfo);
 		}
+		if(!txnInfos.isEmpty())
+			model.addAttribute("txnInfos", txnInfos);
 		//commonService.processTxnStatus(ppi);
 
 		model.addAttribute("layout", "qasupport/txnInfo");
@@ -258,7 +280,7 @@ public class QASupportController extends HttpServlet {
 			@RequestParam(value = "txnType", required = false) String txnType,
 			@RequestParam(value = "payexCpgCode", required = false) String payexCpgCode,
 			@RequestParam(value = "payexRetailerCode", required = false) String payexRetailerCode,
-			@RequestParam(value = "payexPaymentId", required = false) Long payexPaymentId) {
+			@RequestParam(value = "payexPaymentId", required = false) String payexPaymentId) {
 
 		System.out.println("nano second : "+System.nanoTime());
 		System.out.println("mili second : "+System.currentTimeMillis());
@@ -266,9 +288,11 @@ public class QASupportController extends HttpServlet {
 
 		System.out.println("type : "+txnType);
 
-		if(StringUtils.hasText(txnType) || payexPaymentId!=null){
+		List<Long> payexPaymentIds = parsePaymentIds(payexPaymentId);
+
+		if(StringUtils.hasText(txnType) || !payexPaymentIds.isEmpty()){
 			System.out.println("type : "+txnType);
-			List<TransactionCore> txns = commonService.getTransactions(payexCpgCode,payexRetailerCode,txnType, payexPaymentId);
+			List<TransactionCore> txns = commonService.getTransactions(payexCpgCode,payexRetailerCode,txnType, payexPaymentIds);
 			System.out.println("txns.size : "+txns.size());
 			model.addAttribute("txns", txns);
 		}
@@ -573,6 +597,15 @@ public class QASupportController extends HttpServlet {
 			return res.toString();
 		}
 		return ledgerService.saveSnapshot(paymentDetails).toString();
+	}
+
+	/**
+	 * Sets the tag (free text about the payment) of its snapshot, body {"tag": "..."}; an empty tag removes it.
+	 */
+	@PostMapping(value = "txn-snapshot-tag/{ppi}", produces = "application/json")
+	@ResponseBody
+	public String saveTxnSnapshotTag(@PathVariable("ppi") long ppi, @RequestBody Map<String, String> req) {
+		return ledgerService.setSnapshotTag(ppi, req.get("tag")).toString();
 	}
 
 	/**
