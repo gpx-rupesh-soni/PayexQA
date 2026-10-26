@@ -27,7 +27,7 @@
 		<div class="col-sm-6">
 			<div class="panel panel-default input-panel">
 				<div class="panel-heading"><b>1. Save Old Flow Snapshot</b><br/>
-					<small class="text-muted">paid txn: saves the txn, invoices and CNs to a file; otherwise shows the saved snapshot</small>
+					<small class="text-muted">saves the txn, invoices and CNs of a paid txn to a file, once; an existing snapshot is shown, not overwritten</small>
 				</div>
 				<div class="panel-body">
 					<div class="form-inline">
@@ -92,22 +92,32 @@
 
 var baseUrl = '<c:url value="/qasupport/"/>';
 
-function takeSnapshot(){
+/** overwrite : retake a snapshot that is already taken, asked for from the warning of the first try */
+function takeSnapshot(overwrite){
 	var ppi = $.trim($("#snapshotPpi").val());
 	if(!ppi){
 		alert("Please enter PPID");
 		return;
 	}
 	var tag = $.trim($("#snapshotTag").val());
-	callApi(baseUrl + "txn-snapshot/" + ppi, "Snapshot of PPID " + ppi, function (response) {
+	var url = baseUrl + "txn-snapshot/" + ppi + (overwrite ? "?overwrite=true" : "");
+	callApi(url, (overwrite ? "Retake snapshot of PPID " : "Snapshot of PPID ") + ppi, function (response) {
 		showSnapshot(response);
-		// the tag goes in the snapshot once it is saved
-		if(tag)
+		// the tag goes in a snapshot just taken; an existing snapshot keeps its tag, change it with its edit link
+		if(tag && !response.exists)
 			saveTag(ppi, tag, function (tagResponse) {
 				$("#snapshotTag").val("");
 				$("#snapshotTagView").html(tagHtml(ppi, tagResponse.tag));
 			});
 	});
+}
+
+function retakeSnapshot(){
+	var ppi = $.trim($("#snapshotPpi").val());
+	if(confirm("The snapshot of PPID " + ppi + " is already taken.\n\n"
+			+ "Retaking it replaces the saved data with the current database data (the earlier file is kept as a backup).\n\n"
+			+ "Retake the snapshot?"))
+		takeSnapshot(true);
 }
 
 function compareTxns(){
@@ -217,7 +227,17 @@ function callApi(url, title, render){
 function showSnapshot(response){
 	var snapshot = response.snapshot || {};
 	var txn = snapshot.transaction || {};
-	$("#resultSummary").html(statusLabel(true, "SAVED") + ' File : <code>' + esc(response.file) + '</code>'
+	var state = response.exists ? '<span class="label label-warning">ALREADY TAKEN</span>'
+		: statusLabel(true, response.overwritten ? "RETAKEN" : "SAVED");
+	var notice = '';
+	if(response.exists)
+		notice = '<div class="alert alert-warning" style="margin: 8px 0; padding: 8px 12px; font-size: 13px;">'
+			+ esc(response.msg) + '. The saved snapshot is shown below, current payment status : ' + esc(response.paymentStatus) + '.'
+			+ ' <button class="btn btn-warning btn-xs" onclick="retakeSnapshot()">Retake snapshot (overwrite)</button></div>';
+	else if(response.overwritten)
+		notice = '<div class="alert alert-info" style="margin: 8px 0; padding: 8px 12px; font-size: 13px;">'
+			+ 'Earlier snapshot kept as backup : <code>' + esc(response.backup) + '</code></div>';
+	$("#resultSummary").html(state + ' File : <code>' + esc(response.file) + '</code>' + notice
 		+ '<br/><small>PPID : ' + esc(snapshot.ppi) + ' | Snapshot time : ' + esc(snapshot.snapshotTime)
 		+ ' | Invoices : ' + count(snapshot.invoices) + ' | Credit notes : ' + count(snapshot.creditNotes) + '</small>'
 		+ '<br/><small>Tag : <span id="snapshotTagView">' + tagHtml(snapshot.ppi, snapshot.tag) + '</span></small>');

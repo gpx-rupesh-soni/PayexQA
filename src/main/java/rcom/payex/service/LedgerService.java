@@ -344,35 +344,58 @@ public class LedgerService {
 	}
 	
 	/**
-	 * Saves the compared rows of a payment to its snapshot file, overwriting an earlier snapshot.
+	 * Saves the compared rows of a paid payment to its snapshot file.
+	 * An existing snapshot is returned as it is, unless overwrite is asked; the overwritten file is kept as a backup.
 	 */
-	public JSONObject saveSnapshot(TransactionCore paymentDetails) {
-		Path file = snapshotFile(paymentDetails.getPayexPaymentId());
+	public synchronized JSONObject saveSnapshot(TransactionCore paymentDetails, boolean overwrite) {
+		long ppi = paymentDetails.getPayexPaymentId();
+		Path file = snapshotFile(ppi);
 		JSONObject resp = new JSONObject();
 		try {
-			if(paymentDetails.getPaymentStatus()==80){
-				JSONObject snapshot = readFromDb(paymentDetails.getPayexPaymentId());
-				if(snapshot.getJSONObject(TXN).length() == 0) {
-					resp.put("Status", false);
-					resp.put("msg", "No transaction found for PAYEX_PAYMENT_ID " + paymentDetails.getPayexPaymentId());
-					return resp;
-				}
+			JSONObject earlier = readSnapshotFile(file);
+			resp.put("file", file.toString());
+			resp.put("paymentStatus", paymentDetails.getPaymentStatus());
+
+			// the snapshot is taken once, a retake has to be asked for
+			if(earlier != null && !overwrite) {
+				resp.put("Status", true);
+				resp.put("exists", true);
+				resp.put("msg", "Snapshot already taken on " + earlier.opt("snapshotTime") + ", it is not overwritten");
+				resp.put("snapshot", earlier);
+				return resp;
+			}
+			if(paymentDetails.getPaymentStatus() != 80) {
+				resp.put("Status", false);
+				resp.put("msg", "Payment status of PAYEX_PAYMENT_ID " + ppi + " is " + paymentDetails.getPaymentStatus()
+						+ ", a snapshot is taken only of a paid (80) payment"
+						+ (earlier != null ? ", the earlier snapshot is kept" : ""));
+				if(earlier != null)
+					resp.put("snapshot", earlier);
+				return resp;
+			}
+
+			JSONObject snapshot = readFromDb(ppi);
+			if(snapshot.getJSONObject(TXN).length() == 0) {
+				resp.put("Status", false);
+				resp.put("msg", "No transaction found for PAYEX_PAYMENT_ID " + ppi);
+				return resp;
+			}
+			if(earlier != null) {
 				// a retaken snapshot keeps the tag of the earlier one
-				JSONObject earlier = readSnapshotFile(file);
-				if(earlier != null && earlier.has(TAG)) {
+				if(earlier.has(TAG)) {
 					snapshot.put(TAG, earlier.opt(TAG));
 					snapshot.put(TAG_UPDATED, earlier.opt(TAG_UPDATED));
 				}
-				writeSnapshot(file, snapshot);
-				resp.put("Status", true);
-				resp.put("file", file.toString());
-				resp.put("snapshot", snapshot);
-			}else {
-				String json = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-				resp.put("Status", true);
-				resp.put("file", file.toString());
-				resp.put("snapshot", new JSONObject(json));
+				Path backup = Paths.get(file + ".bak-" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()));
+				Files.copy(file, backup);
+				logger.info("VG CN Pull Compare : snapshot of {} overwritten, earlier one kept in {}", ppi, backup);
+				resp.put("backup", backup.toString());
 			}
+			writeSnapshot(file, snapshot);
+			resp.put("Status", true);
+			resp.put("exists", false);
+			resp.put("overwritten", earlier != null);
+			resp.put("snapshot", snapshot);
 		} catch (IOException | JSONException e) {
 			logger.error(Utils.getStackTrace(e));
 			try {

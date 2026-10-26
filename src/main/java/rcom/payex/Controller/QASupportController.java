@@ -584,7 +584,8 @@ public class QASupportController extends HttpServlet {
 	 */
 	@GetMapping(value = "txn-snapshot/{ppi}", produces = "application/json")
 	@ResponseBody
-	public String saveTxnSnapshot(@PathVariable("ppi") long ppi) {
+	public String saveTxnSnapshot(@PathVariable("ppi") long ppi,
+			@RequestParam(value = "overwrite", required = false, defaultValue = "false") boolean overwrite) {
 		TransactionCore paymentDetails = ledgerService.getTransaction(ppi);
 		if(paymentDetails == null) {
 			JSONObject res = new JSONObject();
@@ -596,7 +597,7 @@ public class QASupportController extends HttpServlet {
 			}
 			return res.toString();
 		}
-		return ledgerService.saveSnapshot(paymentDetails).toString();
+		return ledgerService.saveSnapshot(paymentDetails, overwrite).toString();
 	}
 
 	/**
